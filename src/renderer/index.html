@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:" />
+  <title>Termora</title>
+  <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="titlebar">
+    <button id="btn-sidebar" class="tb-icon" title="Ẩn/hiện danh sách session (Ctrl+Shift+B)"></button>
+    <div class="brand"><span class="brand-mark"></span>Termora</div>
+    <div id="tabstrip"></div>
+    <button id="btn-newtab" class="tb-icon" title="Kết nối nhanh (Ctrl+Shift+T)"></button>
+    <div class="drag-fill"></div>
+  </header>
+
+  <div id="body">
+    <aside id="sidebar">
+      <div class="side-head">
+        <div class="search">
+          <span class="ico" data-icon="search"></span>
+          <input id="session-search" placeholder="Tìm session…  Ctrl+Shift+K" spellcheck="false" />
+        </div>
+        <button id="btn-new-session" class="btn primary icon-only" title="Session mới"></button>
+      </div>
+      <div id="session-tree" tabindex="0"></div>
+      <div class="side-foot">
+        <button class="foot-btn" id="btn-keys" title="Quản lý SSH key"><span data-icon="key"></span><span>Keys</span></button>
+        <button class="foot-btn" id="btn-import" title="Import"><span data-icon="import"></span><span>Import</span></button>
+        <button class="foot-btn" id="btn-export" title="Export"><span data-icon="export"></span><span>Export</span></button>
+        <button class="foot-btn" id="btn-settings" title="Cài đặt"><span data-icon="settings"></span><span>Cài đặt</span></button>
+      </div>
+    </aside>
+    <div id="side-resizer"></div>
+
+    <main id="workspace">
+      <section id="welcome">
+        <div class="welcome-inner">
+          <h1>Kết nối tới server</h1>
+          <p class="muted">Gõ <code>user@host:port</code> rồi Enter, hoặc chọn một session đã lưu. SFTP tự mở cùng terminal.</p>
+          <form id="quick-form" class="quick">
+            <span class="ico" data-icon="terminal"></span>
+            <input id="quick-input" placeholder="root@203.0.113.10:22" spellcheck="false" autocomplete="off" />
+            <button class="btn primary" type="submit">Kết nối</button>
+          </form>
+          <h2 class="section-title">Dùng gần đây</h2>
+          <div id="recent"></div>
+          <div class="kbd-hints">
+            <span><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>K</kbd> tìm session</span>
+            <span><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd> kết nối nhanh</span>
+            <span><kbd>Ctrl</kbd><kbd>Tab</kbd> đổi tab</span>
+            <span><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>F</kbd> tìm trong terminal</span>
+          </div>
+        </div>
+      </section>
+      <div id="views"></div>
+    </main>
+  </div>
+
+  <div id="transfers"></div>
+  <div id="toasts"></div>
+  <div id="modal-root"></div>
+  <div id="ctxmenu" hidden></div>
+
+  <script src="../../node_modules/@xterm/xterm/lib/xterm.js"></script>
+  <script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+  <script src="../../node_modules/@xterm/addon-web-links/lib/addon-web-links.js"></script>
+  <script src="../../node_modules/@xterm/addon-search/lib/addon-search.js"></script>
+  <script src="icons.js"></script>
+  <script src="ui.js"></script>
+  <script src="sftp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
