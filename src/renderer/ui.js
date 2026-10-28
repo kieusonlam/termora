@@ -2,6 +2,23 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+// API của preload. Lỗi trả về dạng { __err } (xem preload.js) được ném lại thành Error có code.
+const api = (function wrap(o) {
+  const out = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (typeof v !== 'function') { out[k] = v && typeof v === 'object' ? wrap(v) : v; continue; }
+    out[k] = (...args) => {
+      const r = v(...args);
+      if (!r || typeof r.then !== 'function') return r;
+      return r.then((x) => {
+        if (x && x.__err) throw Object.assign(new Error(x.__err.message), x.__err);
+        return x;
+      });
+    };
+  }
+  return out;
+})(window.bridge);
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }

@@ -18,9 +18,13 @@ const { utils } = require('ssh2');
 const { Store } = require('./store');
 const { SshTab } = require('./ssh');
 const { buildExport, detectAndParse, keyInfo } = require('./importexport');
+const { Sync } = require('./sync');
+const { Updater } = require('./updater');
 
 let win = null;
 let store = null;
+let sync = null;
+let updater = null;
 const tabs = new Map(); // tabId -> SshTab
 const pendingAsks = new Map(); // reqId -> resolve
 
@@ -118,7 +122,34 @@ function registerIpc() {
 
   // ---------- Settings ----------
   handle('settings:get', () => store.getSettings());
-  handle('settings:set', (patch) => store.setSettings(patch));
+  handle('settings:set', (patch) => {
+    const st = store.setSettings(patch);
+    if ('autoUpdate' in patch) updater.startAuto(st.autoUpdate !== false);
+    return st;
+  });
+
+  // ---------- Đồng bộ thư mục cloud ----------
+  handle('sync:status', () => sync.status());
+  handle('sync:pickDir', async () => {
+    const cloud = [process.env.OneDrive, process.env.OneDriveConsumer, process.env.OneDriveCommercial]
+      .concat(['G:\\My Drive', 'G:\\Drive của tôi',path.join(os.homedir(), 'Google Drive'), path.join(os.homedir(), 'Dropbox')])
+      .find((p) => p && fs.existsSync(p));
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Chọn thư mục đồng bộ (trong Google Drive, OneDrive…)',
+      defaultPath: sync.dir || cloud || os.homedir(),
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (r.canceled || !r.filePaths[0]) return null;
+    return { dir: r.filePaths[0], exists: sync.exists(r.filePaths[0]) };
+  });
+  handle('sync:setup', (dir, pass) => sync.setup(dir, pass));
+  handle('sync:now', () => sync.run());
+  handle('sync:stop', () => sync.stop());
+
+  // ---------- Cập nhật ----------
+  handle('update:status', () => updater.state);
+  handle('update:check', () => updater.check());
+  handle('update:install', () => updater.install());
 
   // ---------- Keys ----------
   handle('keys:list', () => store.listKeys());
@@ -315,8 +346,14 @@ if (!gotLock) {
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
     store = new Store();
+    sync = new Sync({ store, send });
+    updater = new Updater({ send });
     registerIpc();
     createWindow();
+    win.webContents.once('did-finish-load', () => {
+      sync.start();
+      updater.startAuto(store.getSettings().autoUpdate !== false);
+    });
   });
   app.on('window-all-closed', () => {
     for (const t of tabs.values()) t.close();

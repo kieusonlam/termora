@@ -3,10 +3,9 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 async function call(channel, ...args) {
   const r = await ipcRenderer.invoke(channel, ...args);
   if (r.ok) return r.data;
-  const err = new Error(r.error);
-  err.code = r.code;
-  err.filePath = r.filePath;
-  throw err;
+  // Lỗi reject qua contextBridge chỉ còn message (mất code, filePath), nên trả về dạng { __err };
+  // ui.js ném lại thành Error đầy đủ.
+  return { __err: { message: r.error, code: r.code, filePath: r.filePath } };
 }
 
 const on = (channel) => (cb) => {
@@ -15,7 +14,7 @@ const on = (channel) => (cb) => {
   return () => ipcRenderer.removeListener(channel, l);
 };
 
-contextBridge.exposeInMainWorld('api', {
+contextBridge.exposeInMainWorld('bridge', {
   sessions: {
     list: () => call('sessions:list'),
     save: (s) => call('sessions:save', s),
@@ -26,6 +25,18 @@ contextBridge.exposeInMainWorld('api', {
   settings: {
     get: () => call('settings:get'),
     set: (p) => call('settings:set', p),
+  },
+  sync: {
+    status: () => call('sync:status'),
+    pickDir: () => call('sync:pickDir'),
+    setup: (dir, pass) => call('sync:setup', dir, pass),
+    now: () => call('sync:now'),
+    stop: () => call('sync:stop'),
+  },
+  update: {
+    status: () => call('update:status'),
+    check: () => call('update:check'),
+    install: () => call('update:install'),
   },
   keys: {
     list: () => call('keys:list'),
@@ -82,5 +93,7 @@ contextBridge.exposeInMainWorld('api', {
     transfer: on('transfer'),
     toast: on('toast'),
     ask: on('ask'),
+    sync: on('sync'),
+    update: on('update'),
   },
 });

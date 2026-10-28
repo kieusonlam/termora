@@ -21,6 +21,8 @@ SSH client cho Windows: đăng nhập SSH là tự mở SFTP bên cạnh termina
 - **Import / export**:
   - export ra file `.termora`, có thể kèm mật khẩu và key, mã hoá AES-256-GCM + scrypt bằng passphrase
   - import từ `.termora`, file bookmark `.mxtsessions` / `.ini` (giữ nguyên cây thư mục) và `~/.ssh/config`
+- **Đồng bộ qua thư mục cloud** (Google Drive, OneDrive, Dropbox…): session, mật khẩu, key được lưu thành file `termora-sync.termora` mã hoá bằng mật khẩu đồng bộ. Các máy trỏ vào cùng thư mục sẽ tự gộp hai chiều (mục sửa sau thắng, xoá ở một máy thì máy kia cũng xoá).
+- **Tự cập nhật** từ GitHub Releases. Bản cài tải ngầm, khởi động lại là xong. Bản portable tải exe mới về rồi chép đè lên file đang dùng; `TermoraData` giữ nguyên.
 
 ## Chạy / build
 
@@ -28,10 +30,12 @@ SSH client cho Windows: đăng nhập SSH là tự mở SFTP bên cạnh termina
 npm install
 node node_modules/electron/install.js   # npm 11 chặn script cài binary của Electron
 npm start
-npm run dist                            # ra dist/Termora-Setup-x.y.z.exe và Termora-portable-x.y.z.exe
+npm run dist                            # ra dist/Termora-Setup-x.y.z.exe, Termora-portable-x.y.z.exe, latest.yml
 ```
 
-Dữ liệu nằm ở `%APPDATA%\Termora\data.json`. Bản portable lưu vào thư mục `TermoraData` cạnh file `.exe`. Mật khẩu trong đó chỉ giải mã được trên đúng tài khoản Windows đã lưu, nên muốn chuyển sang máy khác thì dùng Export.
+Phát hành bản mới: tăng `version`, `npm run dist`, rồi tạo GitHub Release `vX.Y.Z` đính kèm `Termora-Setup-X.Y.Z.exe`, `Termora-Setup-X.Y.Z.exe.blockmap`, `latest.yml` (bản cài cần file này để tự cập nhật) và `Termora-portable-X.Y.Z.exe`.
+
+Dữ liệu nằm ở `%APPDATA%\Termora\data.json`. Bản portable lưu vào thư mục `TermoraData` cạnh file `.exe`. Mật khẩu trong đó chỉ giải mã được trên đúng tài khoản Windows đã lưu, nên muốn chuyển sang máy khác (hoặc giữa bản cài và bản portable) thì dùng Export / Import hoặc bật đồng bộ.
 
 ## Cấu trúc
 
@@ -41,4 +45,6 @@ Dữ liệu nằm ở `%APPDATA%\Termora\data.json`. Bản portable lưu vào th
 | `src/ssh.js` | Một tab = một kết nối: shell, SFTP, monitor, theo dõi thư mục, truyền file |
 | `src/store.js` | Lưu session/key/known hosts, mã hoá bí mật |
 | `src/importexport.js` | Định dạng `.termora`, parser file bookmark và ssh config |
+| `src/sync.js` | Đồng bộ qua thư mục cloud: mã hoá file, gộp theo `updatedAt` và dấu xoá |
+| `src/updater.js` | Tự cập nhật: electron-updater cho bản cài, tự tải và chép đè cho bản portable |
 | `src/renderer/` | Giao diện (HTML/CSS/JS thuần, không cần bundler) |

@@ -34,6 +34,8 @@ const App = {
     this.bind();
     this.renderTabs();
     this.showWelcome();
+    api.sync.status().then((st) => this.onSync(st));
+    api.update.status().then((st) => this.onUpdate(st));
   },
 
   async loadSessions() {
@@ -519,6 +521,136 @@ const App = {
     });
   },
 
+  // ---------- Đồng bộ thư mục cloud ----------
+  syncState: { status: 'off' },
+
+  onSync(st) {
+    const prev = this.syncState;
+    this.syncState = st;
+    const b = $('#btn-sync');
+    b.className = 'foot-btn' + (st.status !== 'off' ? ' s-' + st.status : '');
+    b.title = st.status === 'off' ? 'Đồng bộ qua thư mục cloud' : st.status === 'error' ? 'Lỗi đồng bộ: ' + st.error : 'Đồng bộ: ' + st.dir;
+    if (st.changedLocal) Promise.all([this.loadSessions(), this.loadKeys()]);
+    if (st.status === 'error' && prev.status !== 'error') toast('Đồng bộ lỗi: ' + st.error, 'error', 6000);
+    if (this.syncRender) this.syncRender();
+  },
+
+  syncDialog() {
+    const body = el('<div class="sync-box"></div>');
+    let picked = null; // { dir, exists } khi đang chọn thư mục / nhập mật khẩu
+    const render = () => {
+      const st = this.syncState;
+      if (st.status !== 'off' && !picked) {
+        const when = st.lastSync ? timeAgo(st.lastSync) : 'chưa';
+        body.innerHTML = `
+          <div class="sync-path"><span data-icon="folder" class="i"></span><span>${esc(st.dir)}</span></div>
+          <p class="sync-state ${st.status === 'error' ? 'err' : ''}">${
+            st.status === 'error' ? 'Lỗi: ' + esc(st.error)
+            : st.status === 'syncing' ? 'Đang đồng bộ…'
+            : `Đã đồng bộ ${st.sessions ?? 0} session · ${st.keys ?? 0} key — ${when}`}</p>
+          <div class="sync-acts">
+            <button class="btn sm" data-a="now">${icon('refresh', 14)} Đồng bộ ngay</button>
+            <button class="btn sm" data-a="open">${icon('folderOpen', 14)} Mở thư mục</button>
+            <button class="btn sm" data-a="change">Đổi thư mục / mật khẩu</button>
+            <button class="btn sm danger" data-a="stop">Tắt đồng bộ</button>
+          </div>
+          <p class="hint">${icon('shield', 12)} Máy khác: bật đồng bộ vào cùng thư mục này với cùng mật khẩu. Sửa ở máy nào thì máy kia tự cập nhật sau khi dịch vụ cloud chép file về.</p>`;
+      } else if (!picked) {
+        body.innerHTML = `
+          <p class="confirm-msg">Chọn một thư mục nằm trong Google Drive, OneDrive hoặc Dropbox trên máy này. Termora lưu session, mật khẩu và SSH key vào đó thành file <code>termora-sync.termora</code>, mã hoá bằng mật khẩu đồng bộ do bạn đặt.</p>
+          <p class="hint">${icon('shield', 12)} Mật khẩu đồng bộ không được lưu lên cloud. Quên mật khẩu thì không mở được file trên máy mới (dữ liệu trên máy này vẫn còn).</p>
+          <div class="sync-acts"><button class="btn primary" data-a="pick">${icon('folder', 14)} Chọn thư mục…</button></div>`;
+      } else {
+        body.innerHTML = `
+          <div class="sync-path"><span data-icon="folder" class="i"></span><span>${esc(picked.dir)}</span></div>
+          <p class="hint">${picked.exists
+            ? `${icon('check', 12)} Thư mục đã có dữ liệu đồng bộ. Nhập mật khẩu đã đặt ở máy kia, dữ liệu hai bên sẽ được gộp lại.`
+            : `${icon('plus', 12)} Thư mục chưa có dữ liệu đồng bộ. Đặt mật khẩu mới và dùng lại mật khẩu này trên các máy khác.`}</p>
+          <div class="form">
+            <label class="field"><span>Mật khẩu đồng bộ</span><input name="p1" type="password" autocomplete="off" /></label>
+            ${picked.exists ? '' : '<label class="field"><span>Nhập lại mật khẩu</span><input name="p2" type="password" autocomplete="off" /></label>'}
+          </div>
+          <div class="sync-acts">
+            <button class="btn primary" data-a="enable">Bật đồng bộ</button>
+            <button class="btn" data-a="pick">Chọn thư mục khác…</button>
+            <button class="btn" data-a="cancel">Huỷ</button>
+          </div>`;
+        setTimeout(() => $('[name=p1]', body)?.focus());
+      }
+      hydrateIcons(body);
+    };
+    const enable = async () => {
+      const p1 = $('[name=p1]', body).value, p2 = $('[name=p2]', body)?.value;
+      if (!p1) { toast('Cần nhập mật khẩu đồng bộ', 'error'); return; }
+      if (!picked.exists && p1.length < 8) { toast('Mật khẩu đồng bộ cần ít nhất 8 ký tự', 'error'); return; }
+      if (p2 !== undefined && p1 !== p2) { toast('Hai mật khẩu không khớp', 'error'); return; }
+      try {
+        const st = await api.sync.setup(picked.dir, p1);
+        picked = null;
+        this.onSync(st);
+        if (st.status === 'ok') toast(`Đã bật đồng bộ: ${st.sessions} session, ${st.keys} key`, 'ok');
+      } catch (e) {
+        toast(e.code === 'BADPASS' ? 'Sai mật khẩu đồng bộ' : e.message, 'error', 6000);
+      }
+    };
+    body.addEventListener('click', async (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (!a) return;
+      if (a === 'pick' || a === 'change') {
+        const r = await api.sync.pickDir();
+        if (r) { picked = r; render(); }
+      } else if (a === 'cancel') { picked = null; render(); }
+      else if (a === 'enable') enable();
+      else if (a === 'now') this.onSync(await api.sync.now());
+      else if (a === 'open') api.util.openPath(this.syncState.dir);
+      else if (a === 'stop') {
+        if (await uiConfirm({ title: 'Tắt đồng bộ', message: 'Máy này ngừng đồng bộ. Session trên máy và file trên cloud đều được giữ nguyên.', okLabel: 'Tắt đồng bộ', danger: true })) {
+          await api.sync.stop();
+        }
+      }
+    });
+    body.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.name) enable(); });
+    this.syncRender = render;
+    render();
+    openModal({ title: 'Đồng bộ qua thư mục cloud', icon: 'cloud', width: 540, body, actions: [{ label: 'Đóng' }], onClose: () => { this.syncRender = null; } });
+  },
+
+  // ---------- Cập nhật ----------
+  updateState: { status: 'idle' },
+
+  onUpdate(st) {
+    const prev = this.updateState;
+    this.updateState = st;
+    const b = $('#btn-update');
+    b.hidden = !['available', 'downloading', 'ready'].includes(st.status);
+    b.classList.toggle('busy', st.status === 'downloading');
+    if (st.status === 'downloading') { b.innerHTML = `${icon('download', 14)} Đang tải ${esc(st.version)} · ${st.percent || 0}%`; b.title = 'Đang tải bản cập nhật'; }
+    if (st.status === 'ready') { b.innerHTML = `${icon('refresh', 14)} Khởi động lại để cập nhật ${esc(st.version)}`; b.title = 'Đóng mọi kết nối, cài bản mới rồi mở lại'; }
+    if (st.status === 'available') { b.innerHTML = `${icon('download', 14)} Có bản ${esc(st.version)}`; b.title = 'Mở trang tải về'; }
+    if (st.status === 'ready' && prev.status !== 'ready') toast(`Bản ${st.version} đã tải xong, bấm nút trên thanh tiêu đề để cài`, 'ok', 6000);
+    if (this.updateRender) this.updateRender();
+  },
+
+  async installUpdate() {
+    const st = this.updateState;
+    if (st.status === 'available') return api.util.openExternal(st.url);
+    if (st.status !== 'ready') return;
+    const live = this.tabs.filter((t) => t.state === 'connected').length;
+    if (live && !(await uiConfirm({ title: 'Cài bản ' + st.version, message: `Đang có ${live} kết nối mở, chúng sẽ bị đóng khi khởi động lại.`, okLabel: 'Khởi động lại' }))) return;
+    await api.update.install();
+  },
+
+  updateLine(st) {
+    return {
+      checking: 'Đang kiểm tra…',
+      none: 'Đang dùng bản mới nhất.',
+      available: `Có bản ${st.version}, bấm nút trên thanh tiêu đề để tải.`,
+      downloading: `Đang tải bản ${st.version}… ${st.percent || 0}%`,
+      ready: `Bản ${st.version} đã sẵn sàng, khởi động lại để cài.`,
+      error: 'Lỗi: ' + (st.error || ''),
+    }[st.status] || '';
+  },
+
   // ---------- Settings ----------
   settingsDialog() {
     const s = this.settings;
@@ -532,10 +664,29 @@ const App = {
       <label class="check"><input type="checkbox" name="rightClickPaste" ${s.rightClickPaste ? 'checked' : ''}/><span>Chuột phải để dán (giống PuTTY)</span></label>
       <label class="check"><input type="checkbox" name="cursorBlink" ${s.cursorBlink ? 'checked' : ''}/><span>Con trỏ nhấp nháy</span></label>
       <label class="check"><input type="checkbox" name="monitor" ${s.monitor ? 'checked' : ''}/><span>Theo dõi CPU / RAM / mạng / ổ đĩa của server ở thanh trạng thái</span></label>
+      <div class="set-sec">
+        <h4>Cập nhật</h4>
+        <label class="check"><input type="checkbox" name="autoUpdate" ${s.autoUpdate !== false ? 'checked' : ''}/><span>Tự kiểm tra và tải bản mới</span></label>
+        <div class="set-row"><span class="grow" data-upd></span><button class="btn sm" data-check>${icon('refresh', 14)} Kiểm tra ngay</button></div>
+      </div>
+      <div class="set-sec">
+        <h4>Đồng bộ</h4>
+        <div class="set-row"><span class="grow" data-sync></span><button class="btn sm" data-syncdlg>${icon('cloud', 14)} Thiết lập…</button></div>
+      </div>
       <p class="hint">Phím tắt: Ctrl+Shift+K tìm session · Ctrl+Shift+B ẩn sidebar · Ctrl+Shift+F tìm trong terminal · Ctrl+= / Ctrl+- cỡ chữ · Ctrl+C copy khi có vùng chọn · Ctrl+V / Shift+Insert dán</p>
     </div>`);
+    const mode = { installer: 'bản cài', portable: 'bản portable', dev: 'chạy từ mã nguồn' };
+    this.updateRender = () => {
+      const st = this.updateState;
+      $('[data-upd]', body).textContent = `Termora ${st.current || ''} (${mode[st.mode] || ''}). ${this.updateLine(st)}`;
+    };
+    this.updateRender();
+    const ss = this.syncState;
+    $('[data-sync]', body).textContent = ss.status === 'off' ? 'Chưa bật. Lưu session vào Google Drive / OneDrive để dùng chung giữa các máy.' : ss.status === 'error' ? 'Lỗi: ' + ss.error : 'Đang đồng bộ vào ' + ss.dir;
+    $('[data-check]', body).addEventListener('click', () => api.update.check().then((st) => this.onUpdate(st)));
+    $('[data-syncdlg]', body).addEventListener('click', () => this.syncDialog());
     openModal({
-      title: 'Cài đặt', icon: 'settings', width: 520, body,
+      title: 'Cài đặt', icon: 'settings', width: 520, body, onClose: () => { this.updateRender = null; },
       actions: [{ label: 'Đóng' }, { label: 'Lưu', kind: 'primary', onClick: async () => {
         const f = (n) => $(`[name=${n}]`, body);
         await this.saveSettings({
@@ -546,6 +697,7 @@ const App = {
           rightClickPaste: f('rightClickPaste').checked,
           cursorBlink: f('cursorBlink').checked,
           monitor: f('monitor').checked,
+          autoUpdate: f('autoUpdate').checked,
         });
         for (const t of this.tabs) t.applySettings();
       } }],
@@ -678,6 +830,10 @@ const App = {
     api.on.transfer((p) => this.onTransfer(p));
     api.on.toast((p) => toast(p.message, p.kind));
     api.on.ask((p) => this.onAsk(p));
+    api.on.sync((p) => this.onSync(p));
+    api.on.update((p) => this.onUpdate(p));
+    $('#btn-sync').addEventListener('click', () => this.syncDialog());
+    $('#btn-update').addEventListener('click', () => this.installUpdate());
 
     $('#btn-sidebar').addEventListener('click', () => this.toggleSidebar());
     $('#btn-newtab').addEventListener('click', () => this.showWelcome());

@@ -49,7 +49,8 @@ function decrypt(stored) {
 class Store {
   constructor() {
     this.file = path.join(app.getPath('userData'), 'data.json');
-    this.data = { version: 2, sessions: [], keys: [], knownHosts: {}, settings: { ...DEFAULT_SETTINGS } };
+    this.data = { version: 2, sessions: [], keys: [], knownHosts: {}, deleted: { sessions: {}, keys: {} }, settings: { ...DEFAULT_SETTINGS } };
+    this.onSave = null; // sync.js gắn vào để biết khi dữ liệu đổi
     this.load();
   }
 
@@ -60,6 +61,7 @@ class Store {
         ...this.data,
         ...raw,
         settings: { ...DEFAULT_SETTINGS, ...(raw.settings || {}) },
+        deleted: { sessions: {}, keys: {}, ...(raw.deleted || {}) },
       };
       // v1 → v2: "SFTP theo thư mục terminal" đổi sang mặc định tắt. Session cũ đều bật
       // theo mặc định cũ chứ không phải do người dùng chọn, nên tắt một lần.
@@ -81,6 +83,12 @@ class Store {
     const tmp = this.file + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), 'utf8');
     fs.renameSync(tmp, this.file);
+    if (this.onSave) this.onSave();
+  }
+
+  // Ghi dấu đã xoá để đồng bộ không kéo lại mục này từ máy khác.
+  markDeleted(kind, id) {
+    this.data.deleted[kind][id] = Date.now();
   }
 
   // ---------- Sessions ----------
@@ -125,6 +133,7 @@ class Store {
     const s = this.getSession(id);
     if (!s) return;
     s.password = encrypt(password);
+    s.updatedAt = Date.now();
     this.save();
   }
 
@@ -135,13 +144,14 @@ class Store {
 
   deleteSession(id) {
     this.data.sessions = this.data.sessions.filter((s) => s.id !== id);
+    this.markDeleted('sessions', id);
     this.save();
   }
 
   duplicateSession(id) {
     const s = this.getSession(id);
     if (!s) return null;
-    const copy = { ...s, id: newId(), name: s.name + ' (copy)', createdAt: Date.now(), lastUsed: undefined };
+    const copy = { ...s, id: newId(), name: s.name + ' (copy)', createdAt: Date.now(), updatedAt: Date.now(), lastUsed: undefined };
     this.data.sessions.push(copy);
     this.save();
     return this.publicSession(copy);
@@ -151,6 +161,8 @@ class Store {
     for (const s of this.data.sessions) {
       if ((s.group || '') === oldName) s.group = newName;
       else if ((s.group || '').startsWith(oldName + '/')) s.group = newName + s.group.slice(oldName.length);
+      else continue;
+      s.updatedAt = Date.now();
     }
     this.save();
   }
@@ -181,6 +193,7 @@ class Store {
       privateKey: encrypt(privateKey),
       passphrase: encrypt(passphrase || ''),
       createdAt: Date.now(),
+      updatedAt: Date.now(),
     };
     this.data.keys.push(k);
     this.save();
@@ -189,12 +202,13 @@ class Store {
 
   renameKey(id, name) {
     const k = this.data.keys.find((x) => x.id === id);
-    if (k) { k.name = name; this.save(); }
+    if (k) { k.name = name; k.updatedAt = Date.now(); this.save(); }
   }
 
   deleteKey(id) {
     this.data.keys = this.data.keys.filter((k) => k.id !== id);
-    for (const s of this.data.sessions) if (s.keyId === id) s.keyId = '';
+    this.markDeleted('keys', id);
+    for (const s of this.data.sessions) if (s.keyId === id) { s.keyId = ''; s.updatedAt = Date.now(); }
     this.save();
   }
 
@@ -255,6 +269,34 @@ class Store {
     for (const [hp, fp] of Object.entries(knownHosts)) if (!this.data.knownHosts[hp]) this.data.knownHosts[hp] = fp;
     this.save();
     return { added, skipped, addedKeys };
+  }
+
+  // ---------- Đồng bộ ----------
+  // Bản giải mã của session / key / known hosts / dấu xoá để gộp với file đồng bộ.
+  syncView() {
+    return {
+      sessions: this.data.sessions.map((s) => ({ ...s, password: decrypt(s.password) })),
+      keys: this.data.keys.map((k) => ({ ...k, privateKey: decrypt(k.privateKey), passphrase: decrypt(k.passphrase) })),
+      knownHosts: { ...this.data.knownHosts },
+      deleted: { sessions: { ...this.data.deleted.sessions }, keys: { ...this.data.deleted.keys } },
+    };
+  }
+
+  applySyncView(v) {
+    this.data.sessions = v.sessions.map((s) => ({ ...s, password: encrypt(s.password) }));
+    this.data.keys = v.keys.map((k) => ({ ...k, privateKey: encrypt(k.privateKey), passphrase: encrypt(k.passphrase) }));
+    this.data.knownHosts = v.knownHosts;
+    this.data.deleted = v.deleted;
+    this.save();
+  }
+
+  getSyncSecret() {
+    return decrypt(this.data.syncSecret);
+  }
+
+  setSyncSecret(pass) {
+    this.data.syncSecret = encrypt(pass);
+    this.save();
   }
 }
 
