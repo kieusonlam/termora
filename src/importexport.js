@@ -88,7 +88,7 @@ function parseBookmarks(text) {
       port: Number(f[1]) || 22,
       username: (f[2] || '').trim(),
       authType: 'password',
-      followFolder: true,
+      followFolder: false,
     });
   }
   return { sessions, keys: [] };
@@ -128,7 +128,7 @@ function parseSshConfig(text) {
         port: Number(cur.Port) || 22,
         username: cur.User || '',
         authType: 'password',
-        followFolder: true,
+        followFolder: false,
       };
       if (cur.IdentityFile) {
         const p = expandHome(cur.IdentityFile.replace(/^"|"$/g, ''));

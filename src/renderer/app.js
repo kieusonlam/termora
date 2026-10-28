@@ -195,7 +195,7 @@ const App = {
             <label class="field"><span>Thư mục (nhóm)</span><input name="group" list="group-list" value="${esc(s.group ?? group ?? '')}" placeholder="vd: Khách hàng/Potech" /><datalist id="group-list">${this.groups().map((g) => `<option value="${esc(g)}">`).join('')}</datalist></label>
             <label class="field span2"><span>Thư mục SFTP khi mở</span><input name="startDir" value="${esc(s.startDir || '')}" placeholder="Mặc định: home của user" spellcheck="false" /></label>
           </div>
-          <label class="check"><input type="checkbox" name="followFolder" ${s.followFolder !== false ? 'checked' : ''}/><span>SFTP tự đi theo thư mục hiện tại của terminal</span></label>
+          <label class="check"><input type="checkbox" name="followFolder" ${s.followFolder === true ? 'checked' : ''}/><span>SFTP tự đi theo thư mục hiện tại của terminal</span></label>
           <div class="field"><span>Màu</span><div class="swatches">${COLORS.map((c) => `<button type="button" class="sw ${(s.color || '') === c ? 'on' : ''}" data-c="${c}" style="${c ? `background:${c}` : ''}" title="${c || 'Không màu'}"></button>`).join('')}</div></div>
           <label class="field"><span>Ghi chú</span><textarea name="notes" rows="2">${esc(s.notes || '')}</textarea></label>
         </details>
@@ -280,7 +280,7 @@ const App = {
   quickConnect(str) {
     const m = str.trim().match(/^(?:ssh\s+)?(?:-p\s*(\d+)\s+)?(?:([^@\s]+)@)?([^:\s]+)(?::(\d+))?$/);
     if (!m) return toast('Định dạng: user@host:port', 'error');
-    const adhoc = { host: m[3], username: m[2] || 'root', port: Number(m[4] || m[1]) || 22, authType: 'password', followFolder: true };
+    const adhoc = { host: m[3], username: m[2] || 'root', port: Number(m[4] || m[1]) || 22, authType: 'password', followFolder: false };
     const existing = this.sessions.find((s) => s.host === adhoc.host && (s.username || '') === adhoc.username && Number(s.port) === adhoc.port);
     if (existing) return this.openSession(existing);
     this.addTab(new Tab({ adhoc }));
@@ -882,7 +882,7 @@ class Tab {
     this.title = session ? session.name : `${adhoc.username}@${adhoc.host}`;
     this.subtitle = `${s.username ? s.username + '@' : ''}${s.host}${s.port && Number(s.port) !== 22 ? ':' + s.port : ''}`;
     this.color = s.color || '';
-    this.follow = s.followFolder !== false;
+    this.follow = s.followFolder === true;
     this.password = password; // chỉ giữ trong RAM để kết nối lại
     this.state = 'idle';
     this.sftpVisible = App.settings.sftpVisible !== false;

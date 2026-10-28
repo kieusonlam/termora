@@ -61,7 +61,7 @@ class SftpPanel {
             <th data-sort="size" class="num">Kích thước</th>
             <th data-sort="mtime">Sửa đổi</th>
             <th data-sort="perms">Quyền</th>
-            <th data-sort="owner">Chủ</th>
+            <th data-sort="owner">Chủ:nhóm</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -275,12 +275,15 @@ class SftpPanel {
     this.visible.forEach((it, i) => {
       const ic = it.isDir ? 'folder' : it.isLink ? 'link' : CODE_EXT.test(it.name) ? 'fileCode' : 'file';
       const cls = it.isDir ? 'dir' : it.isLink ? 'lnk' : it.mode & 0o111 ? 'exe' : '';
-      rows.push(`<tr data-i="${i}" class="${this.selected.has(it.path) ? 'sel' : ''}" title="${esc(it.isLink && it.target ? it.name + ' → ' + it.target : it.name)}">
+      const own = it.group && it.group !== it.owner ? `${it.owner}:${it.group}` : it.owner;
+      // Panel hẹp thì một số cột bị thu lại; tooltip luôn đủ thông tin.
+      const tip = [it.isLink && it.target ? it.name + ' → ' + it.target : it.name, `${it.perms}  ${it.owner}:${it.group}`, fmtDate(it.mtime)].join('\n');
+      rows.push(`<tr data-i="${i}" class="${this.selected.has(it.path) ? 'sel' : ''}" title="${esc(tip)}">
         <td><span class="fname"><span class="ficon ${cls}">${icon(ic, 15)}</span><span class="fn ${it.name.startsWith('.') ? 'hidden-f' : ''}">${esc(it.name)}</span>${it.isLink ? '<span class="lnk-tag">↪</span>' : ''}</span></td>
         <td class="num">${it.isDir ? '' : fmtBytes(it.size)}</td>
         <td class="muted">${fmtDate(it.mtime)}</td>
         <td class="mono muted">${esc(it.perms)}</td>
-        <td class="muted">${esc(it.owner)}</td>
+        <td class="owner ${it.owner === 'root' ? 'is-root' : ''}">${esc(own)}</td>
       </tr>`);
     });
     this.tbody.innerHTML = rows.join('');

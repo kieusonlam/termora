@@ -49,7 +49,7 @@ function decrypt(stored) {
 class Store {
   constructor() {
     this.file = path.join(app.getPath('userData'), 'data.json');
-    this.data = { version: 1, sessions: [], keys: [], knownHosts: {}, settings: { ...DEFAULT_SETTINGS } };
+    this.data = { version: 2, sessions: [], keys: [], knownHosts: {}, settings: { ...DEFAULT_SETTINGS } };
     this.load();
   }
 
@@ -61,6 +61,13 @@ class Store {
         ...raw,
         settings: { ...DEFAULT_SETTINGS, ...(raw.settings || {}) },
       };
+      // v1 → v2: "SFTP theo thư mục terminal" đổi sang mặc định tắt. Session cũ đều bật
+      // theo mặc định cũ chứ không phải do người dùng chọn, nên tắt một lần.
+      if ((raw.version || 1) < 2) {
+        for (const s of this.data.sessions) s.followFolder = false;
+        this.data.version = 2;
+        this.save();
+      }
     } catch (e) {
       if (e.code !== 'ENOENT') {
         // File hỏng: giữ bản sao để không mất dữ liệu.

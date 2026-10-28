@@ -323,12 +323,14 @@ body.no-sidebar #sidebar, body.no-sidebar #side-resizer { display: none; }
 .flist th:nth-child(2) { width: 72px; }
 .flist th:nth-child(3) { width: 112px; }
 .flist th:nth-child(4) { width: 86px; }
-.flist th:nth-child(5) { width: 60px; }
-/* Panel hẹp: ẩn bớt cột để tên file luôn đủ chỗ */
-/* table-layout: fixed vẫn giữ chỗ cho cột display:none, nên thu cột về 0 thay vì ẩn */
-@container (max-width: 560px) { .flist th:nth-child(5) { width: 0; padding: 0; } .flist td:nth-child(5) { padding: 0; font-size: 0; } }
-@container (max-width: 470px) { .flist th:nth-child(4) { width: 0; padding: 0; } .flist td:nth-child(4) { padding: 0; font-size: 0; } }
-@container (max-width: 340px) { .flist th:nth-child(3) { width: 0; padding: 0; } .flist td:nth-child(3) { padding: 0; font-size: 0; } }
+.flist th:nth-child(5) { width: 96px; }
+/* Panel hẹp: thu bớt cột để tên file luôn đủ chỗ. Thứ tự bỏ: ngày sửa → quyền → chủ:nhóm.
+   table-layout: fixed vẫn giữ chỗ cho cột display:none, nên thu cột về 0 thay vì ẩn. */
+@container (max-width: 600px) { .flist th:nth-child(3) { width: 0; padding: 0; } .flist td:nth-child(3) { padding: 0; font-size: 0; } }
+@container (max-width: 480px) { .flist th:nth-child(4) { width: 0; padding: 0; } .flist td:nth-child(4) { padding: 0; font-size: 0; } }
+@container (max-width: 320px) { .flist th:nth-child(5) { width: 0; padding: 0; } .flist td:nth-child(5) { padding: 0; font-size: 0; } }
+.flist td.owner { color: var(--text-2); font-size: 12px; }
+.flist td.owner.is-root { color: #e7a35a; }
 .flist td { padding: 0 8px; height: 27px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .flist .num { text-align: right; font-variant-numeric: tabular-nums; }
 .flist td.mono { font-size: 11.5px; }

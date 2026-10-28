@@ -1,7 +1,7 @@
 {
   "name": "termora",
   "productName": "Termora",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SSH + SFTP client, quản lý nhiều session",
   "main": "src/main.js",
   "author": "Lam Kieu",
