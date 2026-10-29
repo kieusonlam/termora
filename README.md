@@ -2,6 +2,19 @@
 
 SSH client cho Windows: đăng nhập SSH là tự mở SFTP bên cạnh terminal.
 
+![Terminal và SFTP cạnh nhau, thanh trạng thái CPU/RAM/ổ đĩa/mạng](docs/screenshots/terminal-sftp.png)
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home.png" alt="Màn hình chính: session nhóm theo thư mục, kết nối nhanh, dùng gần đây"></td>
+    <td><img src="docs/screenshots/session.png" alt="Hộp thoại sửa session"></td>
+  </tr>
+  <tr>
+    <td align="center">Session nhóm theo thư mục, kết nối nhanh</td>
+    <td align="center">Sửa session: mật khẩu, SSH key, SSH agent</td>
+  </tr>
+</table>
+
 ## Tính năng
 
 - **Terminal**: xterm.js, 256 màu, tìm kiếm (Ctrl+Shift+F), bôi đen là copy, chuột phải để dán, Ctrl+C/Ctrl+V thông minh, zoom chữ bằng Ctrl+= / Ctrl+-.
